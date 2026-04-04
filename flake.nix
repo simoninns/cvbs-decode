@@ -12,6 +12,9 @@
         pkgs = nixpkgs.legacyPackages.${system};
         python = pkgs.python312;
 
+        # Vendored vhs-decode source tree (plain tracked files, pinned to 32ffb0fa).
+        vhsDecodeSrc = ./external/vhs-decode;
+
         # All Python runtime, build-time, and test dependencies.
         # Mirrors requirements.txt / pyproject.toml except static-ffmpeg, which is
         # replaced by pkgs.ffmpeg (see native library inputs below).
@@ -41,6 +44,77 @@
           # ── Testing ────────────────────────────────────────────────────────
           ps.pytest
         ]);
+
+        # ── Sandboxed package build ───────────────────────────────────────────
+        #
+        # Compiles the Cython extensions and the vhsd_rust pyo3 Rust extension
+        # inside the Nix sandbox.  Used by checks.unit-tests and packages.default.
+        #
+        # To recompute the cargoHash after updating Cargo.lock:
+        #   nix build --impure --expr '
+        #     let pkgs = import <nixpkgs> {};
+        #     in pkgs.rustPlatform.fetchCargoVendor {
+        #       src = ./external/vhs-decode;
+        #       hash = pkgs.lib.fakeHash;
+        #     }'
+        # and replace the hash with the "got:" value in the error message.
+        cvbsDecoderPkg = python.pkgs.buildPythonPackage {
+          pname = "vhs-decode";
+          version = "0.0.1.dev0";
+          format = "pyproject";
+
+          src = vhsDecodeSrc;
+
+          # Rust extension: src/lib.rs → vhsd_rust.(cpython-312-…).so
+          cargoRoot = ".";
+          cargoDeps = pkgs.rustPlatform.fetchCargoVendor {
+            src = vhsDecodeSrc;
+            name = "vhs-decode-vendor";
+            hash = "sha256-fKAqjvx4Gqa426OyR2qEPXUPEneXGOT1GqOMFDol0Zc=";
+          };
+
+          nativeBuildInputs = [
+            pkgs.rustPlatform.cargoSetupHook
+            pkgs.cargo
+            pkgs.rustc
+            python.pkgs."setuptools-rust"
+            python.pkgs."setuptools-scm"
+            python.pkgs.cython
+            python.pkgs.setuptools
+            python.pkgs.wheel
+            # Strip static-ffmpeg from the wheel metadata: it is not in nixpkgs
+            # and is replaced by pkgs.ffmpeg added to PATH in the devShell.
+            python.pkgs.pythonRelaxDepsHook
+          ];
+
+          # Remove static-ffmpeg from the declared runtime requirements so that
+          # pythonRuntimeDepsCheckHook does not fail the build.  ffmpeg is
+          # provided by pkgs.ffmpeg at runtime (via PATH in the devShell).
+          pythonRemoveDeps = [ "static-ffmpeg" ];
+
+          buildInputs = [
+            pkgs.portaudio
+            pkgs.libsndfile
+          ];
+
+          propagatedBuildInputs = with python.pkgs; [
+            numpy
+            scipy
+            numba
+            matplotlib
+            noisereduce
+            setproctitle
+            sounddevice
+            soundfile
+            soxr
+          ];
+
+          # No git tags in the vendored source; provide a fixed version string.
+          SETUPTOOLS_SCM_PRETEND_VERSION = "0.0.1.dev0";
+
+          # Tests are exercised via the checks.unit-tests derivation below.
+          doCheck = false;
+        };
 
       in {
 
@@ -123,34 +197,48 @@
 
         # ── packages ──────────────────────────────────────────────────────────
         #
-        # TODO (Phase 3): Replace this stub with a full buildPythonPackage
-        # derivation for cvbs-decode.
-        #
-        # The main blocker for a sandboxed package build is the pyo3 Rust extension:
-        # Cargo fetches crates.io deps at build time, which is not allowed inside the
-        # Nix sandbox.  The solution is to vendor the dependency set:
-        #
-        #   nativeBuildInputs = [
-        #     (pkgs.rustPlatform.fetchCargoVendor {
-        #       inherit src;
-        #       hash = "sha256-<compute with: nix build .#cargoVendorHash>";
-        #     })
-        #     pkgs.cargo pkgs.rustc
-        #     ...
-        #   ];
-        #
-        # Once the devShell build is validated (Phase 3), compute the hash and wire
-        # it up here with python.pkgs.buildPythonPackage.
-        packages.default = pythonEnv;
+        # The default package is the full sandboxed build — Cython + Rust compiled.
+        # The devShell uses a separate venv-based workflow for faster iteration.
+        packages.default = cvbsDecoderPkg;
 
         # ── checks ────────────────────────────────────────────────────────────
         #
-        # TODO (Phase 6): Add a sandboxed nix flake check for the unit-test suite.
-        # Blocked on the buildPythonPackage derivation above.
+        # Runs the upstream unit test suite inside the Nix sandbox using the
+        # sandboxed package build above.  Execute with:
+        #   nix flake check
         #
-        # Interim – run the upstream unit suite interactively inside the dev shell:
-        #   nix develop --command python -m pytest external/vhs-decode/tests/unit -v
-        checks = { };
+        # The integration tests (marked @pytest.mark.integration) require external
+        # capture data and are NOT included here; run them manually:
+        #   nix develop --command pytest -m integration tests/
+        checks.unit-tests =
+          let
+            testEnv = python.withPackages (ps: [
+              cvbsDecoderPkg
+              ps.pytest
+            ]);
+          in
+          pkgs.runCommand "cvbs-decode-unit-tests"
+            { buildInputs = [ testEnv ]; }
+            ''
+              cd /tmp
+              # Numba's AOT cache must live in a writable directory.
+              export NUMBA_CACHE_DIR=/tmp/numba-cache
+              # vhsd_rust is a top-level extension module (not a package), so it is
+              # not on sys.path by default.  Add the installed lib path explicitly.
+              export PYTHONPATH="${cvbsDecoderPkg}/${python.sitePackages}:$PYTHONPATH"
+              # Run only the two test modules whose imports succeed against the
+              # stripped vhsdecode tree.  test_demod and test_sync import
+              # vhsdecode.process (a VHS-only module removed in Phase 4) and are
+              # excluded here; they can still be run interactively in the devShell
+              # where the full package is installed via pip -e.
+              python -m pytest \
+                -p no:cacheprovider \
+                --rootdir=${vhsDecodeSrc} \
+                ${vhsDecodeSrc}/tests/unit/test_rust_math.py \
+                ${vhsDecodeSrc}/tests/unit/test_zero_crossing.py \
+                -v
+              touch $out
+            '';
       }
     );
 }

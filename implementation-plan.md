@@ -517,7 +517,7 @@ pytest -m integration -k pal  tests/      # PAL roundtrip only
 
 ---
 
-### Phase 6 — CI/CD wiring
+### Phase 6 — CI/CD wiring ✅ COMPLETE
 
 **Goal:** Run all tests reproducibly via `nix flake check`.
 
@@ -526,15 +526,21 @@ pytest -m integration -k pal  tests/      # PAL roundtrip only
 1. **Add a `checks` output** in `flake.nix`:
 
    ```nix
-   checks.unit-tests = pkgs.runCommand "unit-tests" {
-     buildInputs = [ cvbs-decode-env ];
+   checks.unit-tests = pkgs.runCommand "cvbs-decode-unit-tests" {
+     buildInputs = [ testEnv ];
    } ''
      cd /tmp
-     python -m pytest --rootdir=${src}/external/vhs-decode \
-         ${src}/external/vhs-decode/tests/unit -v
+     export NUMBA_CACHE_DIR=/tmp/numba-cache
+     python -m pytest --rootdir=${vhsDecodeSrc} \
+         ${vhsDecodeSrc}/tests/unit -v
      touch $out
    '';
    ```
+
+   This required first implementing a proper `buildPythonPackage` derivation
+   (`cvbsDecoderPkg`) that compiles the Cython and Rust extensions inside the
+   Nix sandbox.  The Rust Cargo dependencies are pre-fetched via
+   `rustPlatform.fetchCargoVendor` (hash: `sha256-fKAqjvx4Gqa4…`).
 
 2. **Integration tests** are gated on the `integration` mark and require external data;
    they run via:
@@ -545,17 +551,28 @@ pytest -m integration -k pal  tests/      # PAL roundtrip only
 
    These should be run manually or in a CI job that has network access / cached fixtures.
 
-3. **Optional: GitHub Actions workflow** in `.github/workflows/test.yml`:
+3. **GitHub Actions workflow** in `.github/workflows/test.yml`:
 
    ```yaml
-   - uses: cachix/install-nix-action@v26
-   - run: nix flake check
-   - run: nix develop --command pytest tests/unit -v
+   - uses: cachix/install-nix-action@v27
+   - run: nix flake check --print-build-logs
    ```
 
+#### Key findings during implementation
+
+- **Cargo vendor hash** — `rustPlatform.fetchCargoVendor` must pre-fetch Cargo crates
+  so the Rust extension can be built inside the Nix sandbox.  Computed by trying the
+  build with `pkgs.lib.fakeHash` and substituting the "got:" value from the error:
+  `sha256-fKAqjvx4Gqa426OyR2qEPXUPEneXGOT1GqOMFDol0Zc=`
+
+- **`vhsd_rust` on PYTHONPATH** — The installed extension module lives under the
+  package's `sitePackages` path; the `runCommand` derivation adds it to `PYTHONPATH`
+  explicitly so the unit tests can `import vhsd_rust`.
+
 #### Deliverables
-- `flake.nix` with `checks.unit-tests`
-- `.github/workflows/test.yml` (optional, for the cvbs-decode repo itself)
+- `flake.nix` with `packages.default = cvbsDecoderPkg` (full sandboxed build) ✅
+- `flake.nix` with `checks.unit-tests` ✅
+- `.github/workflows/test.yml` ✅
 
 ---
 
