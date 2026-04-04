@@ -357,7 +357,7 @@ vhsdecode/format_defs/cvbs.py
 
 ---
 
-### Phase 5 — CVBS integration test with real captures
+### Phase 5 — CVBS integration test with real captures ✅ COMPLETE
 
 **Goal:** Write a pytest integration test that runs `cvbs-decode` end-to-end on a real
 CVBS capture, verifying the output `.tbc` file is produced and matches the reference
@@ -439,9 +439,9 @@ def test_ntsc_decode_produces_tbc(ntsc_flac, tmp_path):
     meta = json.loads(out.with_suffix(".tbc.json").read_text())
     vp = meta["videoParameters"]
     assert vp["numberOfSequentialFields"] >= 20, "Too few fields decoded"
-    # NTSC 4fsc: 910 active samples × 525 lines
+    # NTSC 4fsc: 910 samples/line; fieldHeight is per-field (263 = ceil(525/2))
     assert vp["fieldWidth"] == 910
-    assert vp["fieldHeight"] == 525
+    assert vp["fieldHeight"] == 263
 
 @pytest.mark.integration
 def test_ntsc_decode_frame_count_matches_reference(ntsc_flac, tmp_path):
@@ -493,8 +493,8 @@ def test_pal_encode_decode_roundtrip(tmp_path):
 
     meta = json.loads(out.with_suffix(".tbc.json").read_text())
     assert meta["videoParameters"]["numberOfSequentialFields"] > 0
-    assert meta["videoParameters"]["fieldWidth"] == 1135  # PAL 4fsc
-    assert meta["videoParameters"]["fieldHeight"] == 625
+    assert meta["videoParameters"]["fieldWidth"] == 1135   # PAL 4fsc
+    assert meta["videoParameters"]["fieldHeight"] == 313    # per-field: ceil(625/2)
 ```
 
 > The exact `cvbs-encode` CLI flags and output format (`--output`, byte format, etc.) will

@@ -1,0 +1,10 @@
+[tool.pytest.ini_options]
+# Default test path for this repo's integration tests.
+# Upstream unit tests live in external/vhs-decode/tests/unit/ and are run
+# with an explicit path:
+#   python -m pytest external/vhs-decode/tests/unit -v
+testpaths = ["tests"]
+addopts = ["--import-mode=importlib"]
+markers = [
+    "integration: end-to-end decode tests requiring real RF data (cvbs-tests/)",
+]
