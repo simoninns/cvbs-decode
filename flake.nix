@@ -98,8 +98,9 @@
               echo "$PWD/external/vhs-decode" > "$PTH"
             fi
 
-            # Suppress setuptools-scm version-detection failures in the submodule.
-            # The SETUPTOOLS_SCM_PRETEND_VERSION env var is only used as fallback.
+            # Suppress setuptools-scm version-detection failures in the vendored source.
+            # The tree has no git tags, so scm cannot compute a version; the env var
+            # provides a fixed fallback that satisfies the build machinery.
             export SETUPTOOLS_SCM_PRETEND_VERSION="''${SETUPTOOLS_SCM_PRETEND_VERSION:-0.0.1.dev0}"
 
             # Ensure Nix-provided ffmpeg is used rather than any static-ffmpeg wheel.

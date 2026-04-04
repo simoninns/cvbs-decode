@@ -1,4 +1,0 @@
-[submodule "external/vhs-decode"]
-	path = external/vhs-decode
-	url = https://github.com/oyvindln/vhs-decode.git
-	branch = vhs_decode

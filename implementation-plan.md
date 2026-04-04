@@ -16,13 +16,12 @@ No changes will be upstreamed to the vhs-decode project.
 ```
 cvbs-decode/                  ← this repo
 ├── external/
-│   └── vhs-decode/           ← git submodule (pinned to vhs_decode branch)
-│       ├── cvbsdecode/        # Python CVBS decode module  ← KEEP
-│       ├── lddecode/          # LD-decode core library     ← KEEP
-│       ├── vhsdecode/         # Shared VHS/CVBS code       ← KEEP (subset)
-│       ├── src/               # Rust extension (vhsd_rust) ← KEEP
-│       ├── tests/             # pytest suite               ← KEEP
-│       └── … (everything else stripped in Phase 4)
+│   └── vhs-decode/           ← vendored source (from vhs_decode branch @ 32ffb0fa)
+│       ├── cvbsdecode/        # Python CVBS decode module
+│       ├── lddecode/          # LD-decode core library
+│       ├── vhsdecode/         # Shared VHS/CVBS code (subset — see Phase 4)
+│       ├── src/               # Rust extension (vhsd_rust)
+│       └── tests/             # upstream pytest suite
 ├── flake.nix                  ← Nix flake: devShell + package
 ├── flake.lock
 ├── tests/                     ← CVBS-specific integration tests live here
@@ -70,26 +69,23 @@ cvbs-decode/                  ← this repo
 
 ---
 
-### Phase 1 — Repository setup
+### Phase 1 — Repository setup ✅ COMPLETE
 
 **Goal:** Get the upstream source locally, pinned to a known commit.
 
-#### Steps
+**Approach (revised in Phase 4):** The vhs-decode source is vendored directly into
+`external/vhs-decode/` as plain tracked files rather than as a git submodule.  Only the
+files needed by `cvbs-decode` are included (see Phase 4 for the full list).
 
-1. **Add vhs-decode as a git submodule** (preferred over a plain clone so the pin is version-controlled):
+**Upstream pin:** commit `32ffb0fa` on the `vhs_decode` branch
+("fix crashes when using cafc", 2024).
 
-   ```sh
-   mkdir -p external
-   git submodule add -b vhs_decode \
-       https://github.com/oyvindln/vhs-decode.git \
-       external/vhs-decode
-   git submodule update --init --recursive
-   ```
+#### Steps (historical — already complete)
 
-2. **Pin the submodule** to the latest known-good commit on the `vhs_decode` branch.  Record
-   the commit SHA in this document for reference at each phase.
+1. Added vhs-decode as a git submodule at commit `32ffb0fa`, then stripped unneeded
+   files (Phase 4) and converted to a vendored plain directory.
 
-3. **Verify the tree** — confirm the following key paths exist:
+2. **Verify the tree** — confirm the following key paths exist:
 
    ```
    external/vhs-decode/cvbsdecode/main.py
@@ -104,7 +100,7 @@ cvbs-decode/                  ← this repo
    ```
 
 #### Deliverables
-- `external/vhs-decode/` present and pinned via `.gitmodules`
+- `external/vhs-decode/` present as vendored source (plain tracked files) ✅
 
 ---
 
@@ -261,15 +257,14 @@ importable and the Cython/Rust extensions are compiled.
 
 ---
 
-### Phase 4 — Strip the vhs-decode tree
+### Phase 4 — Strip the vhs-decode tree ✅ COMPLETE
 
 **Goal:** Remove components not needed by `cvbs-decode` to reduce noise, build time, and
 attack surface.
 
-> Since the submodule is pinned (not modified for upstream), this stripping is done via a
-> **post-checkout hook / setup script** (`scripts/prepare-external.sh`) that removes the
-> unneeded paths from the working tree.  The submodule itself is not mutated — the script
-> is idempotent and safe to re-run after `git submodule update`.
+> The vhs-decode source is vendored directly into `external/vhs-decode/` as plain tracked
+> files.  The strip was applied once when converting from a git submodule to a vendored
+> copy; only the needed files were committed.
 
 #### Directories / files to remove
 
@@ -325,9 +320,40 @@ format_defs/cvbs.py    # if it exists, otherwise formats.py covers it
 > This list should be validated when compiling — if an import error surfaces, the missing
 > file is added back.
 
+#### Key findings during implementation
+
+- All 12 top-level directories/files listed in the plan were present and removed.
+- `vhsdecode/__init__.py` does **not** import `_version.py` directly; `_version.py` is
+  kept to avoid breaking the `setup.cfg` version-lookup path.
+- `vhsdecode/format_defs/` other-format modules (vhs, betamax, umatic, etc.) are lazy-
+  imported only inside named-format branches of `formats.py`; removing them is safe for
+  CVBS-only use.
+- `vhsdecode/addons/` non-chroma modules (biquad, FMdeemph, gnuradioZMQ, resync,
+  vsyncserration, chromaAFC) are not imported by any retained code path.
+- Post-strip smoke test confirms `from cvbsdecode.main import main` and
+  `cvbs-decode --help` both succeed.
+
+#### Retained vhsdecode/ file list (after strip)
+
+```
+vhsdecode/__init__.py
+vhsdecode/_version.py
+vhsdecode/cmdcommons.py
+vhsdecode/formats.py
+vhsdecode/rust_utils.py
+vhsdecode/utils.py
+vhsdecode/sync.pyx          (*.c and *.so are build artifacts, not committed)
+vhsdecode/hilbert.pyx
+vhsdecode/linear_filter.pyx
+vhsdecode/addons/__init__.py
+vhsdecode/addons/chromasep.py
+vhsdecode/format_defs/__init__.py
+vhsdecode/format_defs/cvbs.py
+```
+
 #### Deliverables
-- `scripts/prepare-external.sh` — idempotent strip script
-- Documented list of retained files
+- `external/vhs-decode/` vendored as plain tracked files ✅
+- Documented list of retained files ✅
 
 ---
 
@@ -537,10 +563,10 @@ pytest -m integration -k pal  tests/      # PAL roundtrip only
 
 | Phase | Key output | Blocking? |
 |---|---|---|
-| 1 | `external/vhs-decode` submodule | Yes — all later phases depend on it |
+| 1 | `external/vhs-decode` vendored source | Yes — all later phases depend on it |
 | 2 | `flake.nix` skeleton | Yes — needed to run anything |
 | 3 | Working `cvbs-decode --help` + unit tests pass | Yes |
-| 4 | `scripts/prepare-external.sh` (strip script) | No — optional cleanup |
+| 4 | Stripped vendored source (only needed files committed) | No — cleanup |
 | 5 | CVBS integration test | Yes — core purpose of this repo |
 | 6 | `nix flake check` CI target | No — can come last |
 
@@ -548,10 +574,12 @@ pytest -m integration -k pal  tests/      # PAL roundtrip only
 
 ## Key technical decisions & rationale
 
-### Git submodule vs. vendored copy
-Using a git submodule keeps the upstream pin explicit and allows `git submodule update`
-to pick up security or bug fixes without losing the strip modifications (which live in the
-separate `scripts/prepare-external.sh`).
+### Vendored copy vs. git submodule
+The vhs-decode source is committed directly into `external/vhs-decode/` as a
+vendored copy, pinned to commit `32ffb0fa` of the `vhs_decode` branch.  This
+eliminates the need for `git submodule update --init` on first checkout and removes
+the strip-script maintenance burden.  To update the upstream pin, re-vendor by
+checking out the desired commit and copying only the needed files.
 
 ### Nix flake vs. Docker / pip-only
 A Nix flake is reproducible across Linux machines without needing root, works on NixOS and

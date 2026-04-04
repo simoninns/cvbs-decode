@@ -31,6 +31,9 @@ build/
 .eggs/
 *.egg
 
+# setuptools-scm generated version file (regenerated on each build)
+external/vhs-decode/vhsdecode/_version.py
+
 # --- Nix ---
 result
 result-*
