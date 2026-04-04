@@ -1,0 +1,39 @@
+# --- Test fixtures ---
+# Large binary capture files are local-only; see cvbs-tests/README.md
+cvbs-tests/*.flac
+cvbs-tests/*.mkv
+cvbs-tests/*.mp4
+cvbs-tests/*.u8
+cvbs-tests/*.u16
+cvbs-tests/*.s16
+cvbs-tests/*.cvbs
+cvbs-tests/*.vhs
+cvbs-tests/*.tbc
+cvbs-tests/*.tbc.json
+cvbs-tests/*.log
+
+# Decoded output produced during test runs
+cvbs-tests/output/
+
+# --- vhs-decode submodule external ---
+external/
+
+# --- Python build artefacts ---
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# --- Nix ---
+result
+result-*
+
+# --- Editors ---
+.vscode/
+.idea/
+*.swp
+*~
