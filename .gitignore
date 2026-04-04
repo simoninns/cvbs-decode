@@ -15,6 +15,12 @@ cvbs-tests/*.log
 # Decoded output produced during test runs
 cvbs-tests/output/
 
+# --- Python virtualenv ---
+.venv/
+
+# --- Rust build artefacts ---
+external/vhs-decode/target/
+
 # --- Python build artefacts ---
 __pycache__/
 *.py[cod]

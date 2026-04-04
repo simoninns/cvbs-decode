@@ -187,9 +187,34 @@ importable and the Cython/Rust extensions are compiled.
 
 ---
 
-### Phase 3 — Build & smoke-test the environment
+### Phase 3 — Build & smoke-test the environment ✅ COMPLETE
 
 **Goal:** Enter `nix develop` and successfully run `cvbs-decode --help`.
+
+**Submodule pin:** `32ffb0fa` (vhs_decode branch, "fix crashes when using cafc")
+
+#### Key findings during implementation
+
+1. **System Python 3.13 leakage** — NixOS ships Python 3.13 packages (e.g. mkdocs)
+   in the user's `PYTHONPATH`.  These leaked into the venv and caused
+   `setuptools-rust` to generate a mismatched `cp313` ABI tag while building
+   for Python 3.12, tripping the `bdist_wheel` tag assertion.  Fix: `unset
+   PYTHONPATH` at the top of `shellHook` before creating the venv.
+
+2. **`vhsd_rust` top-level module not on path** — The editable-install finder
+   maps named Python packages (`cvbsdecode`, `vhsdecode`, …) but not top-level
+   extension modules.  `vhsd_rust.cpython-312-x86_64-linux-gnu.so` lives in the
+   vhs-decode root directory.  Fix: write a `.pth` file in the venv pointing to
+   `external/vhs-decode/` so `import vhsd_rust` resolves correctly.
+
+3. **Upstream unit test failures** — `test_demod` (2 tests) and parts of
+   `test_sync` (3 fixture errors) fail because `VHSRFDecode.__init__` now
+   requires a `processing_thread_pool` argument that the tests don't supply.
+   This is an API change in the upstream source that has not yet been reflected
+   in the tests.  *It does not affect cvbs-decode*, which uses `CVBSDecodeInner`
+   (a separate class with a simpler interface).  Test summary: **7/12 pass**.
+   Passing: all `test_rust_math` (Rust extension), all `test_zero_crossing`, and
+   `TestFindPulses::test_find_pulses_pal_good` from `test_sync`.
 
 #### Steps
 
