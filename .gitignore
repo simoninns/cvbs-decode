@@ -15,9 +15,6 @@ cvbs-tests/*.log
 # Decoded output produced during test runs
 cvbs-tests/output/
 
-# --- vhs-decode submodule external ---
-external/
-
 # --- Python build artefacts ---
 __pycache__/
 *.py[cod]
