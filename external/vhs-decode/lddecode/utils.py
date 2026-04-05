@@ -192,7 +192,13 @@ def make_loader(filename, inputfreq=None):
     if inputfreq is not None:
         # We're resampling, so we have to use ffmpeg.
 
-        if filename.endswith(".s16") or filename.endswith(".raw"):
+        if (
+            filename.endswith(".s16")
+            or filename.endswith(".raw")
+            or filename.endswith(".cvbs-pal")
+            or filename.endswith(".cvbs-ntsc")
+            or filename.endswith(".cvbs-palm")
+        ):
             input_args = ["-f", "s16le"]
         elif filename.endswith(".r16") or filename.endswith(".u16") or filename.endswith(".tbc"):
             input_args = ["-f", "u16le"]
@@ -225,7 +231,12 @@ def make_loader(filename, inputfreq=None):
         return load_packed_data_3_32
     elif filename.endswith(".rf"):
         return load_unpacked_data_float32
-    elif filename.endswith(".s16"):
+    elif (
+        filename.endswith(".s16")
+        or filename.endswith(".cvbs-pal")
+        or filename.endswith(".cvbs-ntsc")
+        or filename.endswith(".cvbs-palm")
+    ):
         return load_unpacked_data_s16
     elif filename.endswith(".r16") or filename.endswith(".u16"):
         return load_unpacked_data_u16
