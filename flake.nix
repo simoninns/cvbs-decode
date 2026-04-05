@@ -107,6 +107,11 @@
             sounddevice
             soundfile
             soxr
+            # cvbsdecode/main.py unconditionally imports pyximport at module
+            # load time (to support dynamic .pyx compilation in dev mode).
+            # The pre-compiled .so extensions don't need it at runtime, but the
+            # import still happens, so cython must be present as a runtime dep.
+            cython
           ];
 
           # No git tags in the vendored source; provide a fixed version string.
