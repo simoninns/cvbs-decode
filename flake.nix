@@ -2,7 +2,7 @@
   description = "cvbs-decode – local test harness for the CVBS decoder from vhs-decode";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -19,7 +19,7 @@
         # Mirrors requirements.txt / pyproject.toml except static-ffmpeg, which is
         # replaced by pkgs.ffmpeg (see native library inputs below).
         #
-        # NOTE: noisereduce and soxr are expected to be present in nixpkgs-unstable.
+        # NOTE: noisereduce and soxr are expected to be present in nixos-25.11.
         # If either is missing from your channel snapshot, add a PyPI overlay here.
         pythonEnv = python.withPackages (ps: [
           # ── Runtime ────────────────────────────────────────────────────────
