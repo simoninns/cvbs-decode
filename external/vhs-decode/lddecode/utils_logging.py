@@ -18,12 +18,13 @@ def init_logging(outfile_name, columns=80):
         def emit(self, record):
             nonlocal statusWritten
 
-            if statusWritten:
+            if statusWritten and sys.stdout.isatty():
                 print()
                 super().emit(record)
                 sys.stdout.flush()
                 statusWritten = False
             else:
+                statusWritten = False
                 super().emit(record)
 
     logger_stderr = StreamHandlerR()
@@ -51,9 +52,12 @@ def init_logging(outfile_name, columns=80):
     def status(line):
         nonlocal statusWritten
 
-        print(line + " " * (columns - len(line)), end="\r")
+        if sys.stdout.isatty():
+            print(line + " " * (columns - len(line)), end="\r")
+            statusWritten = True
+        else:
+            print(line)
         logger.debug(line)
-        statusWritten = True
 
     logger.status = status
 
